@@ -36,7 +36,12 @@ fighting/               → Juegos de lucha (Mega Drive)
 puzzle/                 → Juegos de puzzle (Mega Drive)
 adventure/              → Juegos de aventura (Mega Drive)
 roms/                   → Juegos de NES (emulador compatible)
+
+.findings/              → Notas de reverse-engineering (NO parte del backup original)
+.utils/                 → Scripts de utilidad (NO parte del backup original)
 ```
+
+Las carpetas ocultas `.findings/` y `.utils/` fueron agregadas durante el análisis del formato y no forman parte del backup original de la SD — la consola las ignora.
 
 Cada categoría contiene:
 - Archivos ROM (`.zmd` para Mega Drive en categorías específicas, `.nes`/`.md`/`.zip` en `roms/`)
@@ -44,11 +49,25 @@ Cada categoría contiene:
 
 ## Formatos de juegos
 
-### `.zmd` - Contenedor Mega Drive propietario
-- **No es un ROM estándar** (sin firma `SEGA` en 0x100)
-- Estructura: `[Miniatura RGBA] + [Payload WQW comprimido]`
-- El formato WQW es el contenedor genérico del fabricante (también usado en audio)
-- **No se puede cargar directamente** en emuladores estándar — requiere desempaquetar con las herramientas del fabricante
+### `.zmd` - Contenedor Mega Drive propietario (formato completamente documentado)
+
+Estructura verificada por byte-analysis sobre `adventure/test.zmd`:
+
+```
+[119 808 bytes]  Miniatura RGBA — 144 × 208 px, 4 bytes/px (R G B A)
+[variable]       Contenedor WQW — ROM Genesis comprimido con DEFLATE
+```
+
+El **formato WQW es ZIP con el magic `PK` reemplazado por `WQW`**; la estructura interna es idéntica a ZIP. Los tres bloques (`WQW\x03` local header, `WQW\x02` central directory, `WQW\x01` EOCD) corresponden 1-a-1 a sus equivalentes ZIP.
+
+Para crear un `.zmd` desde un ROM estándar de Genesis:
+
+```bash
+python3 .utils/build_zmd.py game.md --out adventure/game.zmd
+python3 .utils/build_zmd.py game.md --thumb cover.png --out sport/game.zmd
+```
+
+Ver `.findings/zmd-format.md` para la documentación técnica completa.
 
 ### Archivos en `roms/` - Múltiples formatos
 La carpeta `roms/` es un cargador universal que acepta (confirmado):
@@ -110,6 +129,10 @@ strings <archivo>
 
 # Trabajar con imágenes RGBA
 python3 -c "from PIL import Image; Image.frombytes('RGBA', (W, H), open('file.bin', 'rb').read()).save('out.png')"
+
+# Crear .zmd desde un ROM Genesis estándar (.md / .bin)
+python3 .utils/build_zmd.py game.md --out adventure/game.zmd
+python3 .utils/build_zmd.py game.md --thumb cover.png --out sport/game.zmd
 ```
 
 ## Compatibilidad con otros clones

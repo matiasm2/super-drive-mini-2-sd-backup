@@ -26,9 +26,12 @@ flash**. The card is just a swappable "skin + game library" layer the firmware r
 ## Card layout
 
 ```
-/Resources/            firmware + UI assets (see below)
-/<category>/            one folder per game category; names come from Foldername.ini
-/<category>/save/       game saves / SRAM for that category (empty = no saves yet)
+/Resources/            UI assets (images, font, audio, config) — see below
+/<category>/           one folder per game category; names come from Foldername.ini
+/<category>/save/      game saves / SRAM for that category (empty = no saves yet)
+
+/.findings/            RESEARCH NOTES — not part of the SD card backup; safe to edit
+/.utils/               HELPER SCRIPTS — not part of the SD card backup; safe to edit
 ```
 
 The category folders match `Resources/Foldername.ini` exactly: `sport`, `shooting`, `fighting`,
@@ -36,27 +39,38 @@ The category folders match `Resources/Foldername.ini` exactly: `sport`, `shootin
 subfolder. **To add a game, drop its ROM in the matching category folder** — the menu is built
 from `Foldername.ini` + whatever ROMs are present.
 
+The `.findings/` and `.utils/` directories were added during reverse-engineering and are **not**
+part of the original SD card backup. They will be ignored by the console.
+
 ## Game ROM formats
 
 Multiple formats coexist, confirmed by content:
 
 - **`.zmd`** (sport/shooting/fighting/puzzle/adventure) — the proprietary **Genesis/Mega Drive**
-  container. It is **not** a raw `.bin`/`.md`/`.smd` ROM: there is no `SEGA`/`SEGA MEGA DRIVE`
-  signature at 0x100 and no readable Genesis header, so it will not load directly in an emulator.
-  Layout confirmed by content: `[RGBA cover thumbnail at the front] + [payload in the vendor's
-  "WQW" container]`. The trailing payload begins with the **`WQW` magic — the same magic as
-  `pcm.asd`** — so `WQW` is the vendor's generic packing/compression format, reused for both audio
-  and games. The ROM is therefore not arbitrarily encrypted; it is wrapped in WQW. The titles
-  present (e.g. *Gleylancer*, *Aa Harimanada*) are Mega Drive-exclusive, so the payload is genuine
-  Genesis game data. Converting a standard Genesis ROM into `.zmd` is unsolved here and needs the
-  vendor's WQW packer, not just a rename.
+  container. Format fully reverse-engineered; see `.findings/zmd-format.md`.
+  Layout: `[119 808-byte RGBA thumbnail (144×208 px)] + [WQW container]`.
+  The WQW container is ZIP-format with `PK` replaced by `WQW`; compression is raw DEFLATE.
+  Use `.utils/build_zmd.py` to pack a standard Genesis ROM into a `.zmd`.
 - **`roms/` tab — universal loader** accepting (confirmed):
   - **`.nes`** — standard iNES files (`4E 45 53 1A` "NES\x1a" header)
   - **`.md`** — raw Mega Drive ROMs (unpackaged Genesis binaries)
-  - **`.zip`** — compressed ROM archives (ROM + assets bundled)
-  
+  - **`.zip`** — compressed ROM archives
+
   All tested formats load without conversion. Other formats may be supported but remain untested.
   This tab effectively plays both NES and Genesis titles.
+
+## WQW container format (summary)
+
+WQW is ZIP with `PK` replaced by `WQW`. The three block types mirror ZIP exactly:
+
+| Block | WQW magic | ZIP equivalent |
+|-------|-----------|----------------|
+| Local file header | `WQW\x03` | `PK\x03\x04` |
+| Central directory  | `WQW\x02` | `PK\x01\x02` |
+| End of central dir | `WQW\x01` | `PK\x05\x06` |
+
+Internal filenames are scrambled (bytes ≥ 0x80); the firmware uses the `.zmd` filename instead.
+The same WQW container is used for `pcm.asd` (boot audio) and all `.zmd` game files.
 
 ## Critical: file extensions are fake
 
@@ -76,7 +90,7 @@ Observed real content types:
 - **`bisrv.nec`** — name suggests "BIOS/boot resource", but it is a **boot/splash RGBA image**
   (solid dark fill `0x1C1307` + `0xFF` alpha), not executable code. Misleading name; verify by bytes.
 - **`pcm.asd`** — audio payload (boot/UI sound); starts with the **`WQW` magic**, the vendor's
-  generic container also used inside every `.zmd` game (see above).
+  container also used inside every `.zmd` game (see above).
 - **`yahei_Arial.ttf`** — the only honestly-named file: the TrueType font used by the menu UI.
 - **`Archive.sys`** — 8-byte binary marker/state file.
 
@@ -90,7 +104,8 @@ Plain-text (CRLF) file that drives the on-screen game-category menu. Structure:
 - Line 1 (`.zmd`): the ROM/save file extension marker the firmware looks for.
 - Following lines: the category folder names shown in the menu, in order
   (`sport`, `shooting`, `fighting`, `roms`, `puzzle`, `adventure`).
-- `FFFFFFFF` then a row of `AARRGGBB`/`RRGGBBAA`-style hex words: UI color palette for the menu.
+- `FFFFFFFF` then a row of `AARRGGBB`/`RRGGBBAA`-style hex words: UI color palette for the menu
+  (6 colour values, one per category tab).
 - Trailing integer rows: menu layout parameters (counts, pixel coordinates, and per-item
   index/color tables). Edit these only if you understand the layout math — small changes move or
   recolor menu elements.
@@ -102,3 +117,4 @@ Plain-text (CRLF) file that drives the on-screen game-category menu. Structure:
 - Treat every file as load-bearing firmware data. Before editing or deleting anything, inspect it
   and preserve its exact size unless you have confirmed the firmware tolerates a different size.
 - Keep a backup before modifying any file — there is no version control to undo a mistake.
+- `.findings/` and `.utils/` are safe to edit freely — they are not read by the console.

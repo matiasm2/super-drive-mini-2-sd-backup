@@ -18,10 +18,20 @@ The console is an **emulator-on-chip** clone: a generic (Chinese) SoC that emula
 Drive 68000/Z80 — there is **no original Sega silicon**. The retail unit advertises HDMI output,
 2.4 GHz wireless pads, ~688 built-in games, and a microSD slot.
 
+Known hardware (physical inspection, June 2026):
+- **RAM:** SK Hynix H5PS1G63EFA — DDR2 SDRAM, **128 MB**
+- **Flash:** XMC XM25QE16B — SPI NOR, **2 MB** — this is where the firmware lives
+- **SoC:** unidentified QFP, markings covered with epoxy
+
 Important consequence confirmed by byte analysis: **the executable firmware is NOT on this card.**
 There is not a single CPU binary in `Resources/` — every file is UI data (RGBA images), the font,
-audio, config, or games. The real program (boot menu + emulator) lives in the **SoC's internal
-flash**. The card is just a swappable "skin + game library" layer the firmware reads from.
+audio, config, or games. The real program (boot menu + emulator) lives in the **2 MB SPI NOR flash
+chip** on the PCB. The card is just a swappable "skin + game library" layer the firmware reads from.
+
+**Community tools (SF2000/frogtool) may not apply directly.** The SF2000 (closest known relative)
+uses an Ingenic JZ4760B (MIPS32, no HDMI, LPDDR). This device has HDMI and DDR2 → different SoC.
+The SD card asset layout (RGBA files, WQW/ZMD format) is very similar, but tool assumptions about
+the SoC or firmware structure should be verified before use.
 
 ## Card layout
 
@@ -51,13 +61,25 @@ Multiple formats coexist, confirmed by content:
   Layout: `[119 808-byte RGBA thumbnail (144×208 px)] + [WQW container]`.
   The WQW container is ZIP-format with `PK` replaced by `WQW`; compression is raw DEFLATE.
   Use `.utils/build_zmd.py` to pack a standard Genesis ROM into a `.zmd`.
-- **`roms/` tab — universal loader** accepting (confirmed):
+- **`.zfc`** (roms/) — the **Famicom/NES** variant of the same container format. Structure is
+  **byte-for-byte identical to `.zmd`**: same 119 808-byte RGBA thumbnail (144×208 px) followed
+  by the same WQW container. The only difference is the ROM inside is an iNES (`.nes`) file
+  instead of a Mega Drive binary. ZFC = Z + FC (Famicom); ZMD = Z + MD (Mega Drive).
+- **`roms/` tab — universal loader** accepting (confirmed working):
   - **`.nes`** — standard iNES files (`4E 45 53 1A` "NES\x1a" header)
   - **`.md`** — raw Mega Drive ROMs (unpackaged Genesis binaries)
-  - **`.zip`** — compressed ROM archives
+  - **`.zip`** — compressed ROM archives containing NES or MD ROMs
 
-  All tested formats load without conversion. Other formats may be supported but remain untested.
-  This tab effectively plays both NES and Genesis titles.
+  Confirmed NOT working (firmware hangs on "loading" screen):
+  - **SNES / `.sfc` / `.smc`** — not emulated; the SoC has no SNES support
+  - **Famicom Disk System / `.fds`** — requires FDS BIOS (`diskrom.sys`) absent from firmware
+  - **Game Boy / `.gb`** — not emulated
+  - **Game Boy Color / `.gbc`** — not emulated
+  - **Game Boy Advance / `.gba`** — not emulated
+
+  The ZIP container is recognized and opened by the firmware, but if the content inside
+  is an unsupported system the firmware hangs instead of showing an error.
+  This console emulates **NES/Famicom and Mega Drive/Genesis only** — no other systems.
 
 ## WQW container format (summary)
 

@@ -1,7 +1,18 @@
-# ZMD File Format
+# ZMD / ZFC File Format
 
-Reverse-engineered from `adventure/test.zmd` (June 2023).  
+Reverse-engineered from `adventure/test.zmd` (June 2023) and confirmed on `roms/test.zfc` (June 2026).  
 Reference tool: `.utils/build_zmd.py`.
+
+## ZMD vs ZFC
+
+The `.zmd` and `.zfc` extensions use **identical structure**. The naming encodes the system:
+
+| Extension | Stands for | ROM inside WQW |
+|-----------|-----------|----------------|
+| `.zmd`    | Z + MD (Mega Drive) | Genesis/MD binary |
+| `.zfc`    | Z + FC (Famicom)    | iNES NES ROM (`NES\x1a` header) |
+
+Both share the same 119 808-byte RGBA thumbnail and WQW container format.
 
 ---
 

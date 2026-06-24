@@ -5,6 +5,68 @@ similitud entre filas (inter-row similarity) para confirmar dimensiones RGBA.
 
 ---
 
+## Observaciones del menú real (fotos HDMI, 2026-06-23)
+
+### Menú principal
+
+El menú muestra las 6 categorías como **burbujas circulares** superpuestas sobre un fondo único y
+colorido (degradado multicolor: verde, azul, cian, rojo, magenta, morado). Cada burbuja
+tiene su propio ícono y etiqueta. El texto grande en el **centro de la pantalla** muestra el
+nombre de la **categoría actualmente seleccionada** ("FC GAMES" en la foto = la burbuja con
+foco en ese momento). El label central cambia al navegar entre burbujas.
+
+| Posición en pantalla | Categoría | Ícono           |
+|----------------------|-----------|-----------------|
+| Superior izquierda   | SPORT     | Pelota de fútbol |
+| Superior derecha     | SHOOTING  | Personaje con tambor |
+| Centro izquierda     | ADVENTURE | Paracaidista    |
+| Centro derecha       | FIGHTING  | Espadas cruzadas |
+| Inferior izquierda   | PUZZLE    | Cubo de Rubik   |
+| Inferior derecha     | ROMS      | Carpeta + cartucho |
+
+El fondo multicolor de todo el menú es **un único asset 853×480** — no es un composite
+en tiempo real. Dado el degradado rico en colores (saturation alta, tonos fríos y cálidos
+mezclados), corresponde probablemente a uno de los archivos de ago-2021 o al asset base.
+
+### Menú in-game (pausa)
+
+Al pausar dentro de un juego aparece un panel izquierdo sobre fondo azul degradado con
+bandas horizontales. Opciones visibles: **Resume / Quit / Load / Save / Screen / System**.
+El ítem seleccionado (Quit en la foto) muestra una barra azul brillante horizontal como
+indicador de selección. A la derecha se muestra un screenshot del juego en curso con borde
+azul, y el nombre del archivo debajo ("Sunset Riders (USA).md").
+
+Mapeo de assets al menú de pausa:
+- **Fondo azul con bandas** → assets 256×480 (`bisrv.nec`, `cca.bvs`, etc.) — el dark
+  marrón-negro que vemos como avg RGB es el estado base; el firmware renderiza el azul
+  encima (o se trata del background completo del modo pausa, no un panel lateral del menú).
+- **Barra de ítem seleccionado** → assets 597×80 (grupo B, tonos más oscuros/azulados como
+  `dsreg.bvs`, `dxva2.nec`, `hlink.bvs`).
+
+### Hallazgo: label central = nombre de la categoría seleccionada
+
+El texto grande en el centro muestra el **nombre visible de la categoría actualmente con foco**.
+"FC GAMES" en la foto corresponde a la carpeta **`roms/`** — el firmware tiene un nombre de
+display hardcodeado para cada carpeta (no derivado de `Foldername.ini`).
+
+Mapping confirmado de nombres internos a labels visibles:
+
+| Carpeta (`Foldername.ini`) | Label en menú |
+|---|---|
+| `sport`     | SPORT     |
+| `shooting`  | SHOOTING  |
+| `fighting`  | FIGHTING  |
+| `roms`      | **FC GAMES** |
+| `puzzle`    | PUZZLE    |
+| `adventure` | ADVENTURE |
+
+"FC" = Famicom: el firmware etiqueta `roms/` como la sección de juegos FC/NES, que es
+consistente con que sea el cargador universal que acepta `.nes` además de `.md` y `.zip`.
+Los labels de las otras 5 carpetas son sus nombres en mayúsculas; solo `roms` tiene un
+label diferente.
+
+---
+
 ## Dimensiones RGBA — confirmadas
 
 Las imágenes son raw RGBA (4 bytes/px, orden R G B A, alpha siempre 0xFF).

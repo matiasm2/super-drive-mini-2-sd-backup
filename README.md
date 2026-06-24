@@ -22,6 +22,8 @@ La consola utiliza un **SoC genérico chino** que emula la arquitectura del **Se
 - **Almacenamiento**: MicroSD expandible
 - **Juegos preinstalados**: ~688-5000 juegos (varía según versión)
 
+Para el inventario completo de componentes (RAM, Flash SPI NOR, transceptor RF, PCBs) ver [`.findings/hardware.md`](.findings/hardware.md).
+
 ### Características importantes
 
 ⚠️ **El firmware ejecutable NO está en esta tarjeta.** El programa principal (menú de inicio + emulador) reside en la **memoria flash interna** del SoC. Esta SD es solo una capa intercambiable que contiene "interfaz + librería de juegos".
@@ -49,34 +51,43 @@ Cada categoría contiene:
 
 ## Formatos de juegos
 
-### `.zmd` - Contenedor Mega Drive propietario (formato completamente documentado)
+### `.zmd` / `.zfc` - Contenedor propietario (formato completamente documentado)
 
-Estructura verificada por byte-analysis sobre `adventure/test.zmd`:
+Ambas extensiones usan estructura idéntica:
+
+| Extensión | Sistema | ROM dentro |
+|-----------|---------|------------|
+| `.zmd` | Mega Drive / Genesis | binario Genesis |
+| `.zfc` | Famicom / NES | archivo iNES (`.nes`) |
 
 ```
 [119 808 bytes]  Miniatura RGBA — 144 × 208 px, 4 bytes/px (R G B A)
-[variable]       Contenedor WQW — ROM Genesis comprimido con DEFLATE
+[variable]       Contenedor WQW — ROM comprimido con DEFLATE
 ```
 
-El **formato WQW es ZIP con el magic `PK` reemplazado por `WQW`**; la estructura interna es idéntica a ZIP. Los tres bloques (`WQW\x03` local header, `WQW\x02` central directory, `WQW\x01` EOCD) corresponden 1-a-1 a sus equivalentes ZIP.
+El **formato WQW es ZIP con el magic `PK` reemplazado por `WQW`**. Ver [`.findings/zmd-format.md`](.findings/zmd-format.md) para la documentación técnica completa.
 
-Para crear un `.zmd` desde un ROM estándar de Genesis:
+Para crear un `.zmd` / `.zfc` desde un ROM estándar:
 
 ```bash
 python3 .utils/build_zmd.py game.md --out adventure/game.zmd
+python3 .utils/build_zmd.py game.nes --out roms/game.zfc
 python3 .utils/build_zmd.py game.md --thumb cover.png --out sport/game.zmd
 ```
 
-Ver `.findings/zmd-format.md` para la documentación técnica completa.
-
 ### Archivos en `roms/` - Múltiples formatos
-La carpeta `roms/` es un cargador universal que acepta (confirmado):
 
-- **`.nes`** - Archivos iNES estándar (firma `4E 45 53 1A`)
-- **`.md`** - ROMs Mega Drive sin empacar (raw binaries)
-- **`.zip`** - Archivos comprimidos (ROM + assets en ZIP)
+La carpeta `roms/` es un cargador universal. Estado confirmado:
 
-Todos se cargan sin necesidad de conversión a `.zmd` propietario. Otros formatos pueden funcionar pero no han sido probados.
+| Formato | Estado |
+|---------|--------|
+| `.nes` (iNES `4E 45 53 1A`) | ✅ funciona |
+| `.md` (Genesis raw binary) | ✅ funciona |
+| `.zip` (ROM comprimido) | ✅ funciona |
+| `.zfc` (contenedor WQW + NES) | ✅ funciona |
+| `.sfc` / `.smc` (SNES) | ❌ firmware cuelga |
+| `.fds` (Famicom Disk System) | ❌ firmware cuelga |
+| `.gb` / `.gbc` / `.gba` (Game Boy) | ❌ firmware cuelga |
 
 ## ⚠️ Las extensiones son engañosas
 
@@ -88,6 +99,8 @@ Todos se cargan sin necesidad de conversión a `.zmd` propietario. Otros formato
 - `bisrv.nec` = imagen RGBA de splash, no código
 - `pcm.asd` = audio con magic `WQW`
 - `yahei_Arial.ttf` = única excepción (TrueType legítimo)
+
+Ver [`.findings/resources-catalog.md`](.findings/resources-catalog.md) para el catálogo completo con dimensiones confirmadas y mapeo al menú visual.
 
 ## Configuración del menú: `Resources/Foldername.ini`
 

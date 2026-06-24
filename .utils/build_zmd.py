@@ -1,21 +1,36 @@
 #!/usr/bin/env python3
 """
-build_zmd.py — Build .zmd files for the Super Drive Mini 2 / SG800 console.
+build_zmd.py — Build .zmd / .zfc files for the Super Drive Mini 2 / SG800 console.
 
 Usage:
-    python3 build_zmd.py <rom.md|rom.bin> [--thumb thumbnail.png] [--out output.zmd]
+    python3 build_zmd.py <rom> [--thumb thumbnail.png] [--out output.zmd]
 
-If no thumbnail is given, a solid blue-gray placeholder (matching the
-original test.zmd colour) is used.  Requires Pillow only when a thumbnail
-image is supplied.
+The system (Mega Drive or Famicom/NES) is auto-detected from the ROM content:
+  - iNES header (NES\\x1a at offset 0) → .zfc  (Famicom)
+  - SEGA string at offset 0x100        → .zmd  (Mega Drive, confirmed)
+  - anything else                      → .zmd  (Mega Drive, assumed)
 
-ZMD layout:
+If no thumbnail is given, a solid blue-gray placeholder is used.
+Requires Pillow only when a thumbnail image is supplied.
+
+Container layout (identical for .zmd and .zfc):
     [119 808 bytes]  RGBA thumbnail  (144 × 208 px, 4 bytes/px)
     [variable]       WQW container   (ZIP-like, WQW replaces PK)
 """
 
-import sys, zlib, struct, os
+import sys, zlib, struct
 from pathlib import Path
+
+
+# --- System detection ---
+
+def detect_system(rom: bytes) -> tuple[str, str]:
+    """Return (system_name, extension) for a ROM based on its content."""
+    if rom[:4] == b"NES\x1a":
+        return ("Famicom/NES", ".zfc")
+    if len(rom) > 0x110 and rom[0x100:0x104] == b"SEGA":
+        return ("Mega Drive", ".zmd")
+    return ("Mega Drive", ".zmd")  # default
 
 THUMB_W = 144
 THUMB_H = 208
@@ -135,10 +150,15 @@ def build_wqw(rom: bytes, fname: bytes = _SCRAMBLED_FNAME) -> bytes:
     return lf + data_block + cd + eocd
 
 
-def build_zmd(rom_path: Path, thumb_path: Path | None, out_path: Path) -> None:
+def build_container(rom_path: Path, thumb_path: Path | None, out_path: Path) -> None:
     rom = rom_path.read_bytes()
     if not rom:
         raise ValueError("ROM file is empty")
+
+    system, ext = detect_system(rom)
+
+    if out_path is None:
+        out_path = rom_path.with_suffix(ext)
 
     if thumb_path:
         thumb = make_thumbnail_rgba(thumb_path)
@@ -149,18 +169,22 @@ def build_zmd(rom_path: Path, thumb_path: Path | None, out_path: Path) -> None:
 
     wqw = build_wqw(rom)
     out_path.write_bytes(thumb + wqw)
-    print(f"Written {out_path}  ({len(thumb) + len(wqw):,} bytes)")
-    print(f"  Thumbnail : {THUMB_W}×{THUMB_H} RGBA  ({len(thumb):,} bytes)")
-    print(f"  ROM       : {len(rom):,} bytes uncompressed")
-    print(f"  WQW       : {len(wqw):,} bytes")
+    print(f"System    : {system}  →  {ext}")
+    print(f"Written   : {out_path}  ({len(thumb) + len(wqw):,} bytes)")
+    print(f"Thumbnail : {THUMB_W}×{THUMB_H} RGBA  ({len(thumb):,} bytes)")
+    print(f"ROM       : {len(rom):,} bytes uncompressed")
+    print(f"WQW       : {len(wqw):,} bytes")
 
 
 def main():
     import argparse
-    p = argparse.ArgumentParser(description="Build .zmd for Super Drive Mini 2 / SG800")
-    p.add_argument("rom", help="ROM file (.md / .bin / .nes)")
+    p = argparse.ArgumentParser(
+        description="Build .zmd (Mega Drive) or .zfc (Famicom/NES) for Super Drive Mini 2 / SG800. "
+                    "System is auto-detected from ROM content."
+    )
+    p.add_argument("rom", help="ROM file (.md / .bin / .nes / etc.)")
     p.add_argument("--thumb", metavar="IMG", help="Thumbnail image (any format Pillow reads)")
-    p.add_argument("--out",   metavar="OUT", help="Output .zmd path (default: <rom>.zmd)")
+    p.add_argument("--out",   metavar="OUT", help="Output path (default: auto, .zmd or .zfc)")
     args = p.parse_args()
 
     rom_path = Path(args.rom)
@@ -171,8 +195,8 @@ def main():
     if thumb_path and not thumb_path.exists():
         sys.exit(f"Thumbnail not found: {thumb_path}")
 
-    out_path = Path(args.out) if args.out else rom_path.with_suffix(".zmd")
-    build_zmd(rom_path, thumb_path, out_path)
+    out_path = Path(args.out) if args.out else None
+    build_container(rom_path, thumb_path, out_path)
 
 
 if __name__ == "__main__":
